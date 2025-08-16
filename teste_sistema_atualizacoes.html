@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Sistema de Atualizações - Cardápio Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-active { background-color: #10B981; animation: pulse 2s infinite; }
+        .status-updating { background-color: #3B82F6; animation: pulse 1s infinite; }
+        .status-error { background-color: #EF4444; }
+        .status-stopped { background-color: #6B7280; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .test-section {
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .log-entry {
+            background-color: #F9FAFB;
+            border-left: 4px solid #3B82F6;
+            padding: 8px 12px;
+            margin: 4px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .log-success { border-left-color: #10B981; }
+        .log-warning { border-left-color: #F59E0B; }
+        .log-error { border-left-color: #EF4444; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="max-w-4xl mx-auto p-6">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">🧪 Teste do Sistema de Atualizações em Tempo Real</h1>
+        
+        <!-- Status do Sistema -->
+        <div class="test-section bg-white">
+            <h2 class="text-xl font-semibold mb-4">📊 Status do Sistema</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="font-medium text-gray-700 mb-2">Estado Atual</h3>
+                    <div class="flex items-center">
+                        <div id="system-status-dot" class="status-dot status-active"></div>
+                        <span id="system-status-text">Verificando...</span>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="font-medium text-gray-700 mb-2">Próxima Verificação</h3>
+                    <span id="next-update">Calculando...</span>
+                </div>
+                <div>
+                    <h3 class="font-medium text-gray-700 mb-2">Versão dos Dados</h3>
+                    <span id="data-version">-</span>
+                </div>
+                <div>
+                    <h3 class="font-medium text-gray-700 mb-2">Última Atualização</h3>
+                    <span id="last-update">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Controles -->
+        <div class="test-section bg-white">
+            <h2 class="text-xl font-semibold mb-4">🎮 Controles</h2>
+            <div class="flex flex-wrap gap-3">
+                <button onclick="startSystem()" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors">
+                    ▶️ Iniciar Sistema
+                </button>
+                <button onclick="stopSystem()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                    ⏹️ Parar Sistema
+                </button>
+                <button onclick="forceUpdate()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                    🔄 Forçar Atualização
+                </button>
+                <button onclick="clearLogs()" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors">
+                    🧹 Limpar Logs
+                </button>
+                <button onclick="testNotification()" class="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors">
+                    🔔 Testar Notificação
+                </button>
+            </div>
+        </div>
+        
+        <!-- Dados das Planilhas -->
+        <div class="test-section bg-white">
+            <h2 class="text-xl font-semibold mb-4">📋 Status das Planilhas</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="border rounded-lg p-3">
+                    <h4 class="font-medium text-gray-700 mb-2">Config</h4>
+                    <div class="text-sm text-gray-600">
+                        <div>Status: <span id="config-status">Verificando...</span></div>
+                        <div>Hash: <span id="config-hash">-</span></div>
+                        <div>Itens: <span id="config-items">-</span></div>
+                    </div>
+                </div>
+                <div class="border rounded-lg p-3">
+                    <h4 class="font-medium text-gray-700 mb-2">Categorias</h4>
+                    <div class="text-sm text-gray-600">
+                        <div>Status: <span id="categories-status">Verificando...</span></div>
+                        <div>Hash: <span id="categories-hash">-</span></div>
+                        <div>Itens: <span id="categories-items">-</span></div>
+                    </div>
+                </div>
+                <div class="border rounded-lg p-3">
+                    <h4 class="font-medium text-gray-700 mb-2">Itens</h4>
+                    <div class="text-sm text-gray-600">
+                        <div>Status: <span id="menu-status">Verificando...</span></div>
+                        <div>Hash: <span id="menu-hash">-</span></div>
+                        <div>Itens: <span id="menu-items">-</span></div>
+                    </div>
+                </div>
+                <div class="border rounded-lg p-3">
+                    <h4 class="font-medium text-gray-700 mb-2">Horários</h4>
+                    <div class="text-sm text-gray-600">
+                        <div>Status: <span id="hours-status">Verificando...</span></div>
+                        <div>Hash: <span id="hours-hash">-</span></div>
+                        <div>Itens: <span id="hours-items">-</span></div>
+                    </div>
+                </div>
+                <div class="border rounded-lg p-3">
+                    <h4 class="font-medium text-gray-700 mb-2">Bairros</h4>
+                    <div class="text-sm text-gray-600">
+                        <div>Status: <span id="neighborhoods-status">Verificando...</span></div>
+                        <div>Hash: <span id="neighborhoods-hash">-</span></div>
+                        <div>Itens: <span id="neighborhoods-items">-</span></div>
+                    </div>
+                </div>
+                <div class="border rounded-lg p-3">
+                    <h4 class="font-medium text-gray-700 mb-2">Cupons</h4>
+                    <div class="text-sm text-gray-600">
+                        <div>Status: <span id="coupons-status">Verificando...</span></div>
+                        <div>Hash: <span id="coupons-hash">-</span></div>
+                        <div>Itens: <span id="coupons-items">-</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Logs do Sistema -->
+        <div class="test-section bg-white">
+            <h2 class="text-xl font-semibold mb-4">📝 Logs do Sistema</h2>
+            <div id="system-logs" class="max-h-96 overflow-y-auto">
+                <div class="log-entry">Sistema de teste iniciado. Aguardando conexão com o cardápio...</div>
+            </div>
+        </div>
+        
+        <!-- Informações do Navegador -->
+        <div class="test-section bg-white">
+            <h2 class="text-xl font-semibold mb-4">🌐 Informações do Navegador</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                    <div><strong>User Agent:</strong> <span id="user-agent">-</span></div>
+                    <div><strong>Notificações:</strong> <span id="notifications-status">-</span></div>
+                    <div><strong>LocalStorage:</strong> <span id="localstorage-status">-</span></div>
+                </div>
+                <div>
+                    <div><strong>Cache API:</strong> <span id="cache-api-status">-</span></div>
+                    <div><strong>Service Worker:</strong> <span id="sw-status">-</span></div>
+                    <div><strong>Online:</strong> <span id="online-status">-</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sistema de logs
+        function addLog(message, type = 'info') {
+            const logsContainer = document.getElementById('system-logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('system-logs').innerHTML = '';
+            addLog('Logs limpos', 'info');
+        }
+        
+        // Verificar se o cardápio está carregado
+        function checkCardapioLoaded() {
+            if (typeof window.getRealtimeStatus === 'function') {
+                addLog('✅ Cardápio carregado - Sistema de atualizações disponível', 'success');
+                updateSystemStatus();
+                startMonitoring();
+            } else {
+                addLog('⏳ Aguardando carregamento do cardápio...', 'warning');
+                setTimeout(checkCardapioLoaded, 1000);
+            }
+        }
+        
+        // Atualizar status do sistema
+        function updateSystemStatus() {
+            try {
+                const status = window.getRealtimeStatus();
+                
+                // Status geral
+                document.getElementById('system-status-text').textContent = status.isActive ? 'Ativo' : 'Parado';
+                document.getElementById('next-update').textContent = status.nextUpdate;
+                document.getElementById('data-version').textContent = status.dataVersion || '-';
+                
+                // Status das planilhas
+                updateSheetStatus('config', status.lastHashes.config);
+                updateSheetStatus('categories', status.lastHashes.categories);
+                updateSheetStatus('menu', status.lastHashes.menu);
+                updateSheetStatus('hours', status.lastHashes.hours);
+                updateSheetStatus('neighborhoods', status.lastHashes.neighborhoods);
+                updateSheetStatus('coupons', status.lastHashes.coupons);
+                
+            } catch (error) {
+                addLog(`❌ Erro ao atualizar status: ${error.message}`, 'error');
+            }
+        }
+        
+        // Atualizar status de uma planilha específica
+        function updateSheetStatus(sheetName, hash) {
+            const statusElement = document.getElementById(`${sheetName}-status`);
+            const hashElement = document.getElementById(`${sheetName}-hash`);
+            const itemsElement = document.getElementById(`${sheetName}-items`);
+            
+            if (hash) {
+                statusElement.textContent = '✅ Carregado';
+                statusElement.className = 'text-green-600';
+                hashElement.textContent = hash.substring(0, 8) + '...';
+                
+                // Tentar obter número de itens
+                try {
+                    const data = window[`${sheetName}Data`] || [];
+                    itemsElement.textContent = data.length || 0;
+                } catch (e) {
+                    itemsElement.textContent = '-';
+                }
+            } else {
+                statusElement.textContent = '⏳ Aguardando...';
+                statusElement.className = 'text-yellow-600';
+                hashElement.textContent = '-';
+                itemsElement.textContent = '-';
+            }
+        }
+        
+        // Monitoramento contínuo
+        function startMonitoring() {
+            setInterval(() => {
+                updateSystemStatus();
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            }, 2000);
+        }
+        
+        // Controles do sistema
+        function startSystem() {
+            try {
+                if (typeof window.startRealtime === 'function') {
+                    window.startRealtime();
+                    addLog('🚀 Sistema de atualizações iniciado', 'success');
+                } else {
+                    addLog('❌ Função startRealtime não disponível', 'error');
+                }
+            } catch (error) {
+                addLog(`❌ Erro ao iniciar sistema: ${error.message}`, 'error');
+            }
+        }
+        
+        function stopSystem() {
+            try {
+                if (typeof window.stopRealtime === 'function') {
+                    window.stopRealtime();
+                    addLog('⏹️ Sistema de atualizações parado', 'warning');
+                } else {
+                    addLog('❌ Função stopRealtime não disponível', 'error');
+                }
+            } catch (error) {
+                addLog(`❌ Erro ao parar sistema: ${error.message}`, 'error');
+            }
+        }
+        
+        function forceUpdate() {
+            try {
+                if (typeof window.forceUpdate === 'function') {
+                    window.forceUpdate();
+                    addLog('🔄 Atualização forçada solicitada', 'info');
+                } else {
+                    addLog('❌ Função forceUpdate não disponível', 'error');
+                }
+            } catch (error) {
+                addLog(`❌ Erro ao forçar atualização: ${error.message}`, 'error');
+            }
+        }
+        
+        function testNotification() {
+            try {
+                if ('Notification' in window) {
+                    if (Notification.permission === 'granted') {
+                        new Notification('Teste de Notificação', {
+                            body: 'Sistema de notificações funcionando!',
+                            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🔔</text></svg>'
+                        });
+                        addLog('🔔 Notificação de teste enviada', 'success');
+                    } else if (Notification.permission === 'default') {
+                        Notification.requestPermission().then(permission => {
+                            if (permission === 'granted') {
+                                testNotification();
+                            } else {
+                                addLog('❌ Permissão de notificação negada', 'error');
+                            }
+                        });
+                    } else {
+                        addLog('❌ Notificações bloqueadas pelo usuário', 'error');
+                    }
+                } else {
+                    addLog('❌ Notificações não suportadas pelo navegador', 'error');
+                }
+            } catch (error) {
+                addLog(`❌ Erro ao testar notificação: ${error.message}`, 'error');
+            }
+        }
+        
+        // Verificar informações do navegador
+        function checkBrowserInfo() {
+            document.getElementById('user-agent').textContent = navigator.userAgent.substring(0, 50) + '...';
+            document.getElementById('notifications-status').textContent = 'Notification' in window ? '✅ Suportado' : '❌ Não suportado';
+            document.getElementById('localstorage-status').textContent = 'localStorage' in window ? '✅ Suportado' : '❌ Não suportado';
+            document.getElementById('cache-api-status').textContent = 'caches' in window ? '✅ Suportado' : '❌ Não suportado';
+            document.getElementById('sw-status').textContent = 'serviceWorker' in navigator ? '✅ Suportado' : '❌ Não suportado';
+            document.getElementById('online-status').textContent = navigator.onLine ? '✅ Online' : '❌ Offline';
+        }
+        
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🚀 Página de teste carregada', 'success');
+            checkBrowserInfo();
+            checkCardapioLoaded();
+            
+            // Monitorar mudanças de conectividade
+            window.addEventListener('online', () => {
+                addLog('🌐 Conexão restaurada', 'success');
+                document.getElementById('online-status').textContent = '✅ Online';
+            });
+            
+            window.addEventListener('offline', () => {
+                addLog('🌐 Conexão perdida', 'warning');
+                document.getElementById('online-status').textContent = '❌ Offline';
+            });
+        });
+    </script>
+</body>
+</html>
