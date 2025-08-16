@@ -50,8 +50,24 @@
 
 <!--   INSIRA ACIMA AS TAGS DE SEO -->
 
-    <script src="config.js"></script>
     <script>
+        // Funções de log simples
+        function debugLog(...args) {
+            console.log('🔍 DEBUG:', ...args);
+        }
+        
+        function infoLog(...args) {
+            console.log('ℹ️ INFO:', ...args);
+        }
+        
+        function errorLog(...args) {
+            console.error('❌ ERRO:', ...args);
+        }
+        
+        function warnLog(...args) {
+            console.warn('⚠️ AVISO:', ...args);
+        }
+        
         // Teste de carregamento do sistema localStorage
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => {
@@ -61,9 +77,20 @@
                 debugLog('✅ loadCartFromStorage:', typeof loadCartFromStorage);
                 debugLog('✅ saveCouponToStorage:', typeof saveCouponToStorage);
                 debugLog('✅ Sistema localStorage carregado com sucesso!');
+                
+                // Teste de carregamento das URLs do config.js
+                debugLog('🔍 === TESTE CONFIG.JS ===');
+                debugLog('CONFIG_CSV_URL:', typeof CONFIG_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('CATEGORIES_CSV_URL:', typeof CATEGORIES_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('MENU_CSV_URL:', typeof MENU_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('HOURS_CSV_URL:', typeof HOURS_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('NEIGHBORHOODS_CSV_URL:', typeof NEIGHBORHOODS_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('COUPONS_CSV_URL:', typeof COUPONS_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('=== FIM TESTE CONFIG.JS ===');
             }, 500);
         });
     </script>
+    <script src="config.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- QR Code Library -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
@@ -683,6 +710,23 @@
                     </div>
                 </div>
                 <div class="flex items-center space-x-3">
+                    <!-- Indicador de Status das Atualizações em Tempo Real -->
+                    <div class="flex items-center space-x-2">
+                        <button onclick="forceImmediateUpdate()" class="p-1 hover:bg-gray-100 rounded transition-colors" title="Forçar atualização imediata">
+                            <svg class="w-4 h-4" style="color: var(--cor-primaria) !important;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 16m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                        </button>
+                        <div class="text-right cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors" onclick="debugRealtime()" id="realtime-indicator" style="font-size: 0.75rem;" title="Clique para ver status das atualizações">
+                            <div class="flex items-center space-x-2">
+                                <div id="realtime-dot" class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                <div class="font-medium" style="color: var(--cor-secundaria) !important;" id="realtime-text">✅</div>
+                            </div>
+                            <div style="color: var(--cor-texto-secundario) !important;" id="realtime-status">Ativo</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Indicador de Horário de Funcionamento -->
                     <div class="text-right cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors" onclick="openHoursModal()" id="hours-indicator" style="font-size: 0.85rem;">
                         <div class="flex items-center space-x-2">
                             <div id="status-dot" class="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -1663,7 +1707,21 @@
             try {
                 debugLog('Loading CSV from:', url);
                 
-                const csvText = await loadCSVTextWithCache(addCacheBuster(url), 0, { forceRefresh: true, fetchOptions: { cache: 'no-store' } });
+                if (!url || typeof url !== 'string') {
+                    throw new Error('URL inválida fornecida para loadCSVData');
+                }
+                
+                // Usar novo sistema sem cache para carregamento inicial
+                const sheetName = url.includes('config') ? 'Config' : 
+                                 url.includes('categor') ? 'Categorias' : 
+                                 url.includes('menu') ? 'Itens' : 
+                                 url.includes('hour') ? 'Horários' : 
+                                 url.includes('neighbor') ? 'Bairros' : 
+                                 url.includes('coupon') ? 'Cupons' : 'Planilha';
+                
+                debugLog(`📋 Identificada planilha: ${sheetName}`);
+                
+                const csvText = await fetchSheetDataNoCache(url, sheetName);
                 debugLog('CSV loaded:', csvText.length, 'chars');
                 
                 const parsedData = parseCSV(csvText);
@@ -1672,8 +1730,6 @@
                 return parsedData;
             } catch (error) {
                 errorLog('Error loading CSV data from', url, ':', error);
-                
-                
                 throw error;
             }
         }
@@ -2983,7 +3039,11 @@
                 if (confirm('🧹 Limpar Cache\n\nIsso vai:\n• Limpar todos os dados salvos\n• Limpar cache do navegador\n• Recarregar a página\n\nDeseja continuar?')) {
                     debugLog('🧹 === LIMPEZA COMPLETA DE CACHE ===');
                     
-                    // 1. Limpar localStorage
+                    // 1. Parar atualizações em tempo real
+                    stopRealtimeUpdates();
+                    debugLog('⏹️ Sistema de atualizações parado');
+                    
+                    // 2. Limpar localStorage
                     try {
                         if (typeof clearAllStorageData === 'function') {
                             clearAllStorageData();
@@ -2996,7 +3056,7 @@
                         errorLog('Erro ao limpar localStorage:', e);
                     }
                     
-                    // 2. Limpar sessionStorage
+                    // 3. Limpar sessionStorage
                     try {
                         sessionStorage.clear();
                         debugLog('✅ sessionStorage limpo');
@@ -3004,7 +3064,7 @@
                         errorLog('Erro ao limpar sessionStorage:', e);
                     }
                     
-                    // 3. Limpar cache do navegador (se suportado)
+                    // 4. Limpar cache do navegador (se suportado)
                     try {
                         if ('caches' in window) {
                             caches.keys().then(function(names) {
@@ -3018,7 +3078,7 @@
                         warnLog('Não foi possível limpar cache do navegador:', e);
                     }
                     
-                    // 4. Forçar recarregamento sem cache
+                    // 5. Forçar recarregamento sem cache
                     debugLog('🔄 Recarregando página sem cache...');
                     debugLog('=== FIM LIMPEZA CACHE ===');
                     
@@ -3056,6 +3116,16 @@
             try {
                 showPreloader();
                 updateProgress(5);
+                
+                // DEBUG: Verificar se as URLs estão carregadas
+                debugLog('🔍 === VERIFICANDO URLs DAS PLANILHAS ===');
+                debugLog('CONFIG_CSV_URL:', typeof CONFIG_CSV_URL !== 'undefined' ? CONFIG_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('CATEGORIES_CSV_URL:', typeof CATEGORIES_CSV_URL !== 'undefined' ? CATEGORIES_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('MENU_CSV_URL:', typeof MENU_CSV_URL !== 'undefined' ? MENU_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('HOURS_CSV_URL:', typeof HOURS_CSV_URL !== 'undefined' ? HOURS_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('NEIGHBORHOODS_CSV_URL:', typeof NEIGHBORHOODS_CSV_URL !== 'undefined' ? NEIGHBORHOODS_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('COUPONS_CSV_URL:', typeof COUPONS_CSV_URL !== 'undefined' ? COUPONS_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('=== FIM VERIFICAÇÃO URLs ===');
                 
                 // Inicializar sistema de localStorage
                 if (typeof initializeStorageSystem === 'function') {
@@ -3184,6 +3254,9 @@
                 
                 // Set up periodic updates for operating hours (every minute)
                 setInterval(updateOperatingHours, 60000);
+                
+                // Verificar status das atualizações a cada 10 segundos
+                setInterval(checkForPendingUpdates, 10000);
 
                 // Mark data as loaded
                 isDataLoaded = true;
@@ -3195,6 +3268,16 @@
                 setTimeout(() => {
                     hidePreloader();
                     initializeApp();
+                    
+                    // Inicializar hashes dos dados carregados
+                    lastDataHashes.config = generateDataHash(configData);
+                    lastDataHashes.categories = generateDataHash(categoriesData);
+                    lastDataHashes.menu = generateDataHash(menuData);
+                    lastDataHashes.hours = generateDataHash(hoursData);
+                    lastDataHashes.neighborhoods = generateDataHash(neighborhoodsData);
+                    lastDataHashes.coupons = generateDataHash(couponsData);
+                    
+                    // Iniciar sistema de atualizações em tempo real
                     startRealtimeUpdates();
                 }, 500);
             } catch (error) {
@@ -3257,20 +3340,12 @@
             debugLog('✅ Restauração de dados concluída');
         }
         
-        // ===== ATUALIZAÇÃO EM TEMPO REAL DAS PLANILHAS (POLLING 2s) =====
-        const REALTIME_POLL_INTERVAL_MS = 2000; // pode ajustar aqui
-        const REALTIME_APPLY_DEBOUNCE_MS = 250; // agrupa múltiplas mudanças próximas
+        // ===== SISTEMA DE ATUALIZAÇÃO EM TEMPO REAL OTIMIZADO - SEM CACHE =====
+        const REALTIME_POLL_INTERVAL_MS = 2000; // Verificação a cada 2 segundos
+        const REALTIME_APPLY_DEBOUNCE_MS = 100; // Debounce reduzido para resposta mais rápida
         let realtimeInterval = null;
         let applyDebounceTimer = null;
-        let pendingApplyFlags = {
-            config: false,
-            categories: false,
-            menu: false,
-            hours: false,
-            neighborhoods: false,
-            coupons: false,
-        };
-        let lastHashes = {
+        let lastDataHashes = {
             config: null,
             categories: null,
             menu: null,
@@ -3278,164 +3353,445 @@
             neighborhoods: null,
             coupons: null,
         };
+        let dataVersion = 0; // Contador de versão para garantir ordem das atualizações
         
-        function simpleHashForObjects(arr) {
+        // Função para gerar hash único dos dados
+        function generateDataHash(data) {
             try {
-                function sortObjectKeysDeep(obj) {
-                    if (Array.isArray(obj)) {
-                        return obj.map(sortObjectKeysDeep);
-                    } else if (obj && typeof obj === 'object') {
+                if (!data || !Array.isArray(data)) return null;
+                
+                // Normalizar dados para hash consistente
+                const normalized = data.map(item => {
+                    if (typeof item === 'object' && item !== null) {
                         const sorted = {};
-                        Object.keys(obj).sort().forEach(k => { sorted[k] = sortObjectKeysDeep(obj[k]); });
+                        Object.keys(item).sort().forEach(key => {
+                            const value = item[key];
+                            if (value !== null && value !== undefined) {
+                                sorted[key] = String(value).trim().toLowerCase();
+                            }
+                        });
                         return sorted;
                     }
-                    return obj;
+                    return String(item).trim().toLowerCase();
+                });
+                
+                // Gerar hash simples mas eficiente
+                const jsonStr = JSON.stringify(normalized);
+                let hash = 0;
+                for (let i = 0; i < jsonStr.length; i++) {
+                    const char = jsonStr.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash; // Convert to 32bit integer
                 }
-                const normalized = JSON.stringify(sortObjectKeysDeep(Array.isArray(arr) ? arr : [arr]));
-                let hash = 0; for (let i = 0; i < normalized.length; i++) { hash = ((hash << 5) - hash) + normalized.charCodeAt(i); hash |= 0; }
-                return hash;
-            } catch (_) {
-                const text = Array.isArray(arr) ? JSON.stringify(arr).slice(0, 512) : String(arr);
-                let hash = 0; for (let i = 0; i < text.length; i++) { hash = ((hash << 5) - hash) + text.charCodeAt(i); hash |= 0; }
-                return hash;
+                return hash.toString(36);
+            } catch (error) {
+                console.warn('Erro ao gerar hash:', error);
+                return Date.now().toString(36); // Fallback para timestamp
             }
         }
         
+        // Função para buscar dados da planilha SEM CACHE
+        async function fetchSheetDataNoCache(url, sheetName) {
+            try {
+                const timestamp = Date.now();
+                const randomToken = Math.random().toString(36).substring(2);
+                
+                // URL com parâmetros anti-cache
+                const cacheBustedUrl = `${url}${url.includes('?') ? '&' : '?'}v=${timestamp}&nocache=${randomToken}&sheet=${encodeURIComponent(sheetName)}`;
+                
+                debugLog(`🌐 Buscando ${sheetName} da planilha:`, cacheBustedUrl);
+                
+                const response = await fetch(cacheBustedUrl, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+                        'Pragma': 'no-cache',
+                        'Expires': '0',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const csvText = await response.text();
+                
+                if (!csvText || csvText.trim().length === 0) {
+                    throw new Error(`Planilha ${sheetName} está vazia ou não acessível`);
+                }
+                
+                debugLog(`✅ ${sheetName} carregado: ${csvText.length} caracteres`);
+                return csvText;
+                
+            } catch (error) {
+                errorLog(`❌ Erro ao buscar ${sheetName}:`, error.message);
+                throw error;
+            }
+        }
+        
+        // Função para buscar todas as planilhas simultaneamente
         async function fetchAllSheetsNoCache() {
-            const token = `rt-${Date.now()}`;
-            const [cfgText, catsText, itemsText, hrsText, neighText, coupsText] = await Promise.all([
-                fetchCSVStrongWithToken(CONFIG_CSV_URL, token),
-                fetchCSVStrongWithToken(CATEGORIES_CSV_URL, token),
-                fetchCSVStrongWithToken(MENU_CSV_URL, token),
-                fetchCSVStrongWithToken(HOURS_CSV_URL, token),
-                fetchCSVStrongWithToken(NEIGHBORHOODS_CSV_URL, token),
-                fetchCSVStrongWithToken(COUPONS_CSV_URL, token),
-            ]);
-            const cfg = parseCSV(cfgText || '');
-            const cats = parseCSV(catsText || '');
-            const items = parseCSV(itemsText || '');
-            const hrs = parseCSV(hrsText || '');
-            const neigh = parseCSV(neighText || '');
-            const coups = parseCSV(coupsText || '');
-            return { cfg, cats, items, hrs, neigh, coups };
-        }
-        
-        function dataHasChanged(newData, type) {
-            const currentHash = simpleHashForObjects(newData);
-            const prev = lastHashes[type];
-            if (prev === null || prev !== currentHash) {
-                lastHashes[type] = currentHash;
-                return true;
+            try {
+                const currentVersion = ++dataVersion;
+                debugLog(`🔄 Iniciando busca de dados (versão ${currentVersion})...`);
+                
+                // Buscar todas as planilhas em paralelo
+                const promises = [
+                    fetchSheetDataNoCache(CONFIG_CSV_URL, 'Config'),
+                    fetchSheetDataNoCache(CATEGORIES_CSV_URL, 'Categorias'),
+                    fetchSheetDataNoCache(MENU_CSV_URL, 'Itens'),
+                    fetchSheetDataNoCache(HOURS_CSV_URL, 'Horários'),
+                    fetchSheetDataNoCache(NEIGHBORHOODS_CSV_URL, 'Bairros'),
+                    fetchSheetDataNoCache(COUPONS_CSV_URL, 'Cupons')
+                ];
+                
+                const results = await Promise.allSettled(promises);
+                
+                // Processar resultados
+                const data = {
+                    config: null,
+                    categories: null,
+                    menu: null,
+                    hours: null,
+                    neighborhoods: null,
+                    coupons: null,
+                    version: currentVersion
+                };
+                
+                const errors = [];
+                
+                results.forEach((result, index) => {
+                    const sheetNames = ['Config', 'Categorias', 'Itens', 'Horários', 'Bairros', 'Cupons'];
+                    const sheetName = sheetNames[index];
+                    
+                    if (result.status === 'fulfilled') {
+                        try {
+                            const parsed = parseCSV(result.value);
+                            data[Object.keys(data)[index]] = parsed;
+                            debugLog(`✅ ${sheetName} processado: ${parsed.length} itens`);
+                        } catch (parseError) {
+                            errorLog(`❌ Erro ao processar ${sheetName}:`, parseError.message);
+                            errors.push(`${sheetName}: erro de parsing`);
+                        }
+                    } else {
+                        errorLog(`❌ Falha ao buscar ${sheetName}:`, result.reason.message);
+                        errors.push(`${sheetName}: ${result.reason.message}`);
+                    }
+                });
+                
+                if (errors.length > 0) {
+                    warnLog(`⚠️ Algumas planilhas falharam:`, errors.join(', '));
+                }
+                
+                debugLog(`✅ Busca de dados concluída (versão ${currentVersion})`);
+                return data;
+                
+            } catch (error) {
+                errorLog('❌ Erro crítico ao buscar planilhas:', error);
+                throw error;
             }
-            return false;
         }
         
+        // Função para verificar se os dados mudaram
+        function hasDataChanged(newData, oldHash, dataType) {
+            if (!newData || !Array.isArray(newData)) return false;
+            
+            const newHash = generateDataHash(newData);
+            const changed = newHash !== oldHash;
+            
+            if (changed) {
+                debugLog(`🔄 Mudança detectada em ${dataType}: hash ${oldHash} → ${newHash}`);
+            }
+            
+            return changed;
+        }
+        
+        // Função para aplicar atualizações em tempo real
         async function applyRealtimeUpdates() {
             try {
-                const { cfg, cats, items, hrs, neigh, coups } = await fetchAllSheetsNoCache();
-                let shouldRerenderMenu = false;
-                let shouldReapplyConfig = false;
-                let shouldUpdateHours = false;
-                let shouldUpdateNeighborhoods = false;
-                let shouldUpdateCoupons = false;
+                updateRealtimeIndicator('updating');
                 
-                if (dataHasChanged(cfg, 'config')) {
-                    configData = cfg;
+                const newData = await fetchAllSheetsNoCache();
+                const currentVersion = newData.version;
+                
+                // Verificar se esta é a versão mais recente
+                if (currentVersion !== dataVersion) {
+                    debugLog(`⏭️ Pulando versão antiga ${currentVersion} (atual: ${dataVersion})`);
+                    updateRealtimeIndicator('active');
+                    return;
+                }
+                
+                let hasChanges = false;
+                const changes = [];
+                
+                // Verificar mudanças em cada tipo de dado
+                if (hasDataChanged(newData.config, lastDataHashes.config, 'Config')) {
+                    configData = newData.config;
                     appConfig = processConfigData(configData);
-                    shouldReapplyConfig = true;
+                    lastDataHashes.config = generateDataHash(newData.config);
+                    changes.push('Config');
+                    hasChanges = true;
                 }
-                if (dataHasChanged(cats, 'categories')) {
-                    categoriesData = cats;
-                    shouldRerenderMenu = true;
+                
+                if (hasDataChanged(newData.categories, lastDataHashes.categories, 'Categorias')) {
+                    categoriesData = newData.categories;
+                    lastDataHashes.categories = generateDataHash(newData.categories);
+                    changes.push('Categorias');
+                    hasChanges = true;
                 }
-                if (dataHasChanged(items, 'menu')) {
-                    const categoriesForProcessing = categoriesData && categoriesData.length ? categoriesData : cats;
-                    menuData = processMenuData(items, categoriesForProcessing);
-                    shouldRerenderMenu = true;
+                
+                if (hasDataChanged(newData.menu, lastDataHashes.menu, 'Itens')) {
+                    const categoriesForProcessing = categoriesData && categoriesData.length ? categoriesData : newData.categories;
+                    menuData = processMenuData(newData.menu, categoriesForProcessing);
+                    lastDataHashes.menu = generateDataHash(newData.menu);
+                    changes.push('Itens');
+                    hasChanges = true;
                 }
-                if (dataHasChanged(hrs, 'hours')) {
-                    hoursData = hrs;
-                    shouldUpdateHours = true;
+                
+                if (hasDataChanged(newData.hours, lastDataHashes.hours, 'Horários')) {
+                    hoursData = newData.hours;
+                    lastDataHashes.hours = generateDataHash(newData.hours);
+                    changes.push('Horários');
+                    hasChanges = true;
                 }
-                if (dataHasChanged(neigh, 'neighborhoods')) {
-                    neighborhoodsData = neigh.map(row => ({
+                
+                if (hasDataChanged(newData.neighborhoods, lastDataHashes.neighborhoods, 'Bairros')) {
+                    neighborhoodsData = newData.neighborhoods.map(row => ({
                         bairro: (row.bairro || row.nome_bairro || row.Bairro || row.BAIRRO || '').trim().toLowerCase(),
                         taxa: parseFloat((row.taxa || row.valor_taxa || row.Taxa || row.TAXA || '0').toString().replace(',', '.')) || 0
                     })).filter(item => item.bairro);
                     window.neighborhoodsData = neighborhoodsData;
-                    shouldUpdateNeighborhoods = true;
-                }
-                if (dataHasChanged(coups, 'coupons')) {
-                    couponsData = coups;
-                    shouldUpdateCoupons = true;
+                    lastDataHashes.neighborhoods = generateDataHash(newData.neighborhoods);
+                    changes.push('Bairros');
+                    hasChanges = true;
                 }
                 
-                            // Marcar flags pendentes para aplicar em lote
-            pendingApplyFlags.config = pendingApplyFlags.config || shouldReapplyConfig;
-            pendingApplyFlags.menu = pendingApplyFlags.menu || shouldRerenderMenu;
-            pendingApplyFlags.categories = pendingApplyFlags.categories || shouldRerenderMenu;
-            pendingApplyFlags.hours = pendingApplyFlags.hours || shouldUpdateHours;
-            pendingApplyFlags.neighborhoods = pendingApplyFlags.neighborhoods || shouldUpdateNeighborhoods;
-            pendingApplyFlags.coupons = pendingApplyFlags.coupons || shouldUpdateCoupons;
-
-            // Debounce das aplicações para evitar re-render múltiplo em sequência
-            if (applyDebounceTimer) clearTimeout(applyDebounceTimer);
-            applyDebounceTimer = setTimeout(() => {
-                if (pendingApplyFlags.config) {
-                    applyConfiguration();
+                if (hasDataChanged(newData.coupons, lastDataHashes.coupons, 'Cupons')) {
+                    couponsData = newData.coupons;
+                    lastDataHashes.coupons = generateDataHash(newData.coupons);
+                    changes.push('Cupons');
+                    hasChanges = true;
                 }
-                if (pendingApplyFlags.menu || pendingApplyFlags.categories) {
-                    renderCategoryNavigation();
-                    renderMenu();
-                }
-                if (pendingApplyFlags.hours) {
-                    updateOperatingHours();
-                }
-                if (pendingApplyFlags.neighborhoods) {
-                    if (typeof prepareNeighborhoodsAutocomplete === 'function') {
-                        prepareNeighborhoodsAutocomplete();
+                
+                // Aplicar mudanças se houver
+                if (hasChanges) {
+                    debugLog(`🚀 Aplicando mudanças: ${changes.join(', ')}`);
+                    
+                    // Mostrar notificação de atualização
+                    showUpdateNotification(changes);
+                    
+                    // Debounce para agrupar múltiplas mudanças próximas
+                    if (applyDebounceTimer) {
+                        clearTimeout(applyDebounceTimer);
                     }
-                    if (typeof updateCheckoutOrderTotal === 'function') {
-                        updateCheckoutOrderTotal();
-                    }
-                }
-                if (pendingApplyFlags.coupons) {
-                    if (appliedCoupon) {
-                        const code = (appliedCoupon.codigo_cupom || appliedCoupon.codigo || '').toString().toUpperCase();
-                        const refreshed = couponsData.find(c => (c.codigo_cupom || c.codigo || '').toString().toUpperCase() === code);
-                        if (refreshed) {
-                            appliedCoupon = refreshed;
-                            const discount = calculateCouponDiscount(appliedCoupon);
-                            couponDiscount = discount;
-                        } else {
-                            appliedCoupon = null;
-                            couponDiscount = 0;
+                    
+                    applyDebounceTimer = setTimeout(() => {
+                        try {
+                            // Aplicar configurações
+                            if (changes.includes('Config')) {
+                                applyConfiguration();
+                                debugLog('✅ Configurações aplicadas');
+                            }
+                            
+                            // Aplicar mudanças no menu
+                            if (changes.includes('Categorias') || changes.includes('Itens')) {
+                                renderCategoryNavigation();
+                                renderMenu();
+                                debugLog('✅ Menu atualizado');
+                            }
+                            
+                            // Aplicar mudanças nos horários
+                            if (changes.includes('Horários')) {
+                                updateOperatingHours();
+                                debugLog('✅ Horários atualizados');
+                            }
+                            
+                            // Aplicar mudanças nos bairros
+                            if (changes.includes('Bairros')) {
+                                if (typeof prepareNeighborhoodsAutocomplete === 'function') {
+                                    prepareNeighborhoodsAutocomplete();
+                                }
+                                if (typeof updateCheckoutOrderTotal === 'function') {
+                                    updateCheckoutOrderTotal();
+                                }
+                                debugLog('✅ Bairros atualizados');
+                            }
+                            
+                            // Aplicar mudanças nos cupons
+                            if (changes.includes('Cupons')) {
+                                if (appliedCoupon) {
+                                    const code = (appliedCoupon.codigo_cupom || appliedCoupon.codigo || '').toString().toUpperCase();
+                                    const refreshed = couponsData.find(c => (c.codigo_cupom || c.codigo || '').toString().toUpperCase() === code);
+                                    if (refreshed) {
+                                        appliedCoupon = refreshed;
+                                        const discount = calculateCouponDiscount(appliedCoupon);
+                                        couponDiscount = discount;
+                                    } else {
+                                        appliedCoupon = null;
+                                        couponDiscount = 0;
+                                    }
+                                    if (typeof updateCheckoutOrderTotal === 'function') {
+                                        updateCheckoutOrderTotal();
+                                    }
+                                }
+                                debugLog('✅ Cupons atualizados');
+                            }
+                            
+                            debugLog(`✅ Todas as mudanças aplicadas com sucesso`);
+                            
+                        } catch (error) {
+                            errorLog('❌ Erro ao aplicar mudanças:', error);
                         }
-                        if (typeof updateCheckoutOrderTotal === 'function') {
-                            updateCheckoutOrderTotal();
-                        }
-                    }
+                    }, REALTIME_APPLY_DEBOUNCE_MS);
+                    
+                } else {
+                    debugLog('✅ Nenhuma mudança detectada');
                 }
-                // reset flags
-                pendingApplyFlags = { config: false, categories: false, menu: false, hours: false, neighborhoods: false, coupons: false };
-            }, REALTIME_APPLY_DEBOUNCE_MS);
-            } catch (e) {
-                if (typeof warnLog === 'function') warnLog('Realtime update check failed:', e.message);
+                
+                updateRealtimeIndicator('active');
+                
+            } catch (error) {
+                errorLog('❌ Erro na verificação de atualizações:', error);
+                updateRealtimeIndicator('error');
             }
         }
         
+        // Função para iniciar atualizações em tempo real
         function startRealtimeUpdates() {
-            if (realtimeInterval) return;
-            let seq = 0;
-            const run = async () => {
-                const mySeq = ++seq;
-                await applyRealtimeUpdates();
-                // somente o último resultado é considerado válido (evita resposta fora de ordem)
-                if (mySeq !== seq) return;
-            };
-            run();
-            realtimeInterval = setInterval(run, REALTIME_POLL_INTERVAL_MS);
+            if (realtimeInterval) {
+                debugLog('⚠️ Atualizações em tempo real já estão ativas');
+                return;
+            }
+            
+            debugLog('🚀 Iniciando sistema de atualizações em tempo real...');
+            updateRealtimeIndicator('active');
+            
+            // Executar primeira verificação imediatamente
+            applyRealtimeUpdates();
+            
+            // Configurar intervalo de verificação
+            realtimeInterval = setInterval(() => {
+                applyRealtimeUpdates();
+            }, REALTIME_POLL_INTERVAL_MS);
+            
+            debugLog(`✅ Sistema de atualizações ativado (verificação a cada ${REALTIME_POLL_INTERVAL_MS/1000}s)`);
         }
+        
+        // Função para parar atualizações em tempo real
+        function stopRealtimeUpdates() {
+            if (realtimeInterval) {
+                clearInterval(realtimeInterval);
+                realtimeInterval = null;
+                debugLog('⏹️ Sistema de atualizações em tempo real parado');
+                updateRealtimeIndicator('stopped');
+            }
+            
+            if (applyDebounceTimer) {
+                clearTimeout(applyDebounceTimer);
+                applyDebounceTimer = null;
+            }
+        }
+        
+        // Função para forçar atualização imediata
+        async function forceImmediateUpdate() {
+            debugLog('🔄 Forçando atualização imediata...');
+            stopRealtimeUpdates();
+            await applyRealtimeUpdates();
+            startRealtimeUpdates();
+        }
+        
+        // Função para verificar status do sistema de atualizações
+        function getRealtimeStatus() {
+            return {
+                isActive: !!realtimeInterval,
+                interval: REALTIME_POLL_INTERVAL_MS,
+                lastHashes: lastDataHashes,
+                dataVersion: dataVersion,
+                nextUpdate: realtimeInterval ? 'em 2 segundos' : 'desativado'
+            };
+        }
+        
+        // Função para debug do sistema de atualizações
+        function debugRealtimeSystem() {
+            const status = getRealtimeStatus();
+            console.group('🔍 DEBUG SISTEMA DE ATUALIZAÇÕES EM TEMPO REAL');
+            console.log('Status:', status);
+            console.log('Dados em memória:', {
+                config: configData?.length || 0,
+                categories: categoriesData?.length || 0,
+                menu: menuData?.length || 0,
+                hours: hoursData?.length || 0,
+                neighborhoods: neighborhoodsData?.length || 0,
+                coupons: couponsData?.length || 0
+            });
+            console.log('Hashes atuais:', lastDataHashes);
+            console.log('Versão de dados:', dataVersion);
+            console.groupEnd();
+        }
+        
+        // Função para mostrar notificação de atualização (DESABILITADA)
+        function showUpdateNotification(changes) {
+            // Notificações desabilitadas - apenas log para debug
+            debugLog(`🔄 Dados atualizados: ${changes.join(', ')}`);
+        }
+        
+        // Função para atualizar indicador visual das atualizações (SIMPLIFICADA)
+        function updateRealtimeIndicator(status = 'active') {
+            const dot = document.getElementById('realtime-dot');
+            const text = document.getElementById('realtime-text');
+            const statusText = document.getElementById('realtime-status');
+            
+            if (!dot || !text || !statusText) return;
+            
+            switch (status) {
+                case 'active':
+                    dot.className = 'w-2 h-2 bg-green-500 rounded-full animate-pulse';
+                    text.textContent = '✅';
+                    statusText.textContent = 'Ativo';
+                    break;
+                case 'updating':
+                    dot.className = 'w-2 h-2 bg-blue-500 rounded-full animate-pulse';
+                    text.textContent = '🔄';
+                    statusText.textContent = 'Atualizando...';
+                    break;
+                case 'error':
+                    dot.className = 'w-2 h-2 bg-red-500 rounded-full';
+                    text.textContent = '❌';
+                    statusText.textContent = 'Erro';
+                    break;
+                default:
+                    dot.className = 'w-2 h-2 bg-green-500 rounded-full animate-pulse';
+                    text.textContent = '✅';
+                    statusText.textContent = 'Ativo';
+            }
+        }
+        
+        // Função para verificar se há atualizações pendentes
+        function checkForPendingUpdates() {
+            const status = getRealtimeStatus();
+            if (!status.isActive) {
+                updateRealtimeIndicator('stopped');
+                return;
+            }
+            
+            // Verificar se há mudanças pendentes
+            const hasPendingChanges = Object.values(lastDataHashes).some(hash => hash === null);
+            if (hasPendingChanges) {
+                updateRealtimeIndicator('updating');
+            } else {
+                updateRealtimeIndicator('active');
+            }
+        }
+        
+        // Expor funções para debug no console
+        window.forceUpdate = forceImmediateUpdate;
+        window.getRealtimeStatus = getRealtimeStatus;
+        window.debugRealtime = debugRealtimeSystem;
+        window.stopRealtime = stopRealtimeUpdates;
+        window.startRealtime = startRealtimeUpdates;
+        window.checkUpdates = checkForPendingUpdates;
         
         let cart = [];
         let currentProduct = null;
@@ -11661,7 +12017,7 @@
                     lines = rows;
                 } else {
                     // Fallback forte no-cache caso não tenha em memória
-                    const csvText = await fetchCSVStrongWithToken(HOURS_CSV_URL, `hours-${Date.now()}`);
+                    const csvText = await fetchSheetDataNoCache(HOURS_CSV_URL, 'Horários');
                     lines = csvText.trim().split('\n');
                 }
                 
