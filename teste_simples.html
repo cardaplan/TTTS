@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Simples - Config.js</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .log { background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste Simples - Config.js</h1>
+    
+    <div id="status-container">
+        <div class="status info">Carregando...</div>
+    </div>
+    
+    <div>
+        <button onclick="testConfig()" class="btn-primary">🔍 Testar Config.js</button>
+        <button onclick="testURLs()" class="btn-success">🌐 Testar URLs</button>
+        <button onclick="clearLogs()" class="btn-danger">🧹 Limpar Logs</button>
+    </div>
+    
+    <div id="logs" class="log">
+        <strong>Logs do Sistema:</strong><br>
+        <div id="log-content">Aguardando...</div>
+    </div>
+    
+    <script>
+        // Funções de log
+        function log(message, type = 'info') {
+            const logContent = document.getElementById('log-content');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logContent.appendChild(logEntry);
+            logContent.scrollTop = logContent.scrollHeight;
+            
+            // Também log no console
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        function clearLogs() {
+            document.getElementById('log-content').innerHTML = '';
+            log('Logs limpos', 'info');
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const container = document.getElementById('status-container');
+            container.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        // Testar se config.js foi carregado
+        function testConfig() {
+            log('🔍 === TESTE CONFIG.JS ===', 'info');
+            
+            // Verificar se as variáveis estão definidas
+            const configVars = [
+                'CONFIG_CSV_URL',
+                'CATEGORIES_CSV_URL', 
+                'MENU_CSV_URL',
+                'HOURS_CSV_URL',
+                'NEIGHBORHOODS_CSV_URL',
+                'COUPONS_CSV_URL'
+            ];
+            
+            let allLoaded = true;
+            
+            configVars.forEach(varName => {
+                if (typeof window[varName] !== 'undefined') {
+                    log(`✅ ${varName}: CARREGADA`, 'success');
+                    log(`   URL: ${window[varName]}`, 'info');
+                } else {
+                    log(`❌ ${varName}: NÃO CARREGADA`, 'error');
+                    allLoaded = false;
+                }
+            });
+            
+            if (allLoaded) {
+                log('🎉 Todas as variáveis do config.js foram carregadas com sucesso!', 'success');
+                updateStatus('✅ Config.js carregado com sucesso!', 'success');
+            } else {
+                log('⚠️ Algumas variáveis do config.js não foram carregadas', 'warning');
+                updateStatus('⚠️ Config.js com problemas', 'warning');
+            }
+            
+            log('=== FIM TESTE CONFIG.JS ===', 'info');
+        }
+        
+        // Testar se as URLs são acessíveis
+        async function testURLs() {
+            log('🌐 === TESTE URLs ===', 'info');
+            
+            const urls = [
+                { name: 'Config', url: window.CONFIG_CSV_URL },
+                { name: 'Categorias', url: window.CATEGORIES_CSV_URL },
+                { name: 'Itens', url: window.MENU_CSV_URL },
+                { name: 'Horários', url: window.HOURS_CSV_URL },
+                { name: 'Bairros', url: window.NEIGHBORHOODS_CSV_URL },
+                { name: 'Cupons', url: window.COUPONS_CSV_URL }
+            ];
+            
+            for (const item of urls) {
+                if (!item.url) {
+                    log(`❌ ${item.name}: URL não definida`, 'error');
+                    continue;
+                }
+                
+                try {
+                    log(`🔄 Testando ${item.name}...`, 'info');
+                    
+                    const response = await fetch(item.url, {
+                        method: 'GET',
+                        cache: 'no-store'
+                    });
+                    
+                    if (response.ok) {
+                        const text = await response.text();
+                        log(`✅ ${item.name}: Acessível (${text.length} caracteres)`, 'success');
+                    } else {
+                        log(`❌ ${item.name}: HTTP ${response.status}`, 'error');
+                    }
+                } catch (error) {
+                    log(`❌ ${item.name}: Erro - ${error.message}`, 'error');
+                }
+            }
+            
+            log('=== FIM TESTE URLs ===', 'info');
+        }
+        
+        // Verificar status inicial
+        function checkInitialStatus() {
+            log('🚀 Página carregada', 'info');
+            
+            // Aguardar um pouco para o config.js carregar
+            setTimeout(() => {
+                log('⏳ Verificando carregamento do config.js...', 'info');
+                testConfig();
+            }, 1000);
+        }
+        
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', checkInitialStatus);
+    </script>
+    
+    <!-- Carregar config.js -->
+    <script src="config.js"></script>
+</body>
+</html>

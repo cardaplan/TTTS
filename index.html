@@ -50,8 +50,24 @@
 
 <!--   INSIRA ACIMA AS TAGS DE SEO -->
 
-    <script src="config.js"></script>
     <script>
+        // Funções de log simples
+        function debugLog(...args) {
+            console.log('🔍 DEBUG:', ...args);
+        }
+        
+        function infoLog(...args) {
+            console.log('ℹ️ INFO:', ...args);
+        }
+        
+        function errorLog(...args) {
+            console.error('❌ ERRO:', ...args);
+        }
+        
+        function warnLog(...args) {
+            console.warn('⚠️ AVISO:', ...args);
+        }
+        
         // Teste de carregamento do sistema localStorage
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => {
@@ -61,9 +77,20 @@
                 debugLog('✅ loadCartFromStorage:', typeof loadCartFromStorage);
                 debugLog('✅ saveCouponToStorage:', typeof saveCouponToStorage);
                 debugLog('✅ Sistema localStorage carregado com sucesso!');
+                
+                // Teste de carregamento das URLs do config.js
+                debugLog('🔍 === TESTE CONFIG.JS ===');
+                debugLog('CONFIG_CSV_URL:', typeof CONFIG_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('CATEGORIES_CSV_URL:', typeof CATEGORIES_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('MENU_CSV_URL:', typeof MENU_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('HOURS_CSV_URL:', typeof HOURS_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('NEIGHBORHOODS_CSV_URL:', typeof NEIGHBORHOODS_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('COUPONS_CSV_URL:', typeof COUPONS_CSV_URL !== 'undefined' ? '✅ Carregada' : '❌ NÃO CARREGADA');
+                debugLog('=== FIM TESTE CONFIG.JS ===');
             }, 500);
         });
     </script>
+    <script src="config.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- QR Code Library -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
@@ -692,10 +719,10 @@
                         </button>
                         <div class="text-right cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors" onclick="debugRealtime()" id="realtime-indicator" style="font-size: 0.75rem;" title="Clique para ver status das atualizações">
                             <div class="flex items-center space-x-2">
-                                <div id="realtime-dot" class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                                <div class="font-medium" style="color: var(--cor-secundaria) !important;" id="realtime-text">🔄</div>
+                                <div id="realtime-dot" class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                <div class="font-medium" style="color: var(--cor-secundaria) !important;" id="realtime-text">✅</div>
                             </div>
-                            <div style="color: var(--cor-texto-secundario) !important;" id="realtime-status">Atualizando...</div>
+                            <div style="color: var(--cor-texto-secundario) !important;" id="realtime-status">Ativo</div>
                         </div>
                     </div>
                     
@@ -1680,6 +1707,10 @@
             try {
                 debugLog('Loading CSV from:', url);
                 
+                if (!url || typeof url !== 'string') {
+                    throw new Error('URL inválida fornecida para loadCSVData');
+                }
+                
                 // Usar novo sistema sem cache para carregamento inicial
                 const sheetName = url.includes('config') ? 'Config' : 
                                  url.includes('categor') ? 'Categorias' : 
@@ -1687,6 +1718,8 @@
                                  url.includes('hour') ? 'Horários' : 
                                  url.includes('neighbor') ? 'Bairros' : 
                                  url.includes('coupon') ? 'Cupons' : 'Planilha';
+                
+                debugLog(`📋 Identificada planilha: ${sheetName}`);
                 
                 const csvText = await fetchSheetDataNoCache(url, sheetName);
                 debugLog('CSV loaded:', csvText.length, 'chars');
@@ -3084,6 +3117,16 @@
                 showPreloader();
                 updateProgress(5);
                 
+                // DEBUG: Verificar se as URLs estão carregadas
+                debugLog('🔍 === VERIFICANDO URLs DAS PLANILHAS ===');
+                debugLog('CONFIG_CSV_URL:', typeof CONFIG_CSV_URL !== 'undefined' ? CONFIG_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('CATEGORIES_CSV_URL:', typeof CATEGORIES_CSV_URL !== 'undefined' ? CATEGORIES_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('MENU_CSV_URL:', typeof MENU_CSV_URL !== 'undefined' ? MENU_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('HOURS_CSV_URL:', typeof HOURS_CSV_URL !== 'undefined' ? HOURS_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('NEIGHBORHOODS_CSV_URL:', typeof NEIGHBORHOODS_CSV_URL !== 'undefined' ? NEIGHBORHOODS_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('COUPONS_CSV_URL:', typeof COUPONS_CSV_URL !== 'undefined' ? COUPONS_CSV_URL : 'NÃO DEFINIDA');
+                debugLog('=== FIM VERIFICAÇÃO URLs ===');
+                
                 // Inicializar sistema de localStorage
                 if (typeof initializeStorageSystem === 'function') {
                     initializeStorageSystem();
@@ -3688,44 +3731,13 @@
             console.groupEnd();
         }
         
-        // Função para mostrar notificação de atualização
+        // Função para mostrar notificação de atualização (DESABILITADA)
         function showUpdateNotification(changes) {
-            try {
-                // Verificar se o navegador suporta notificações
-                if (!('Notification' in window)) {
-                    debugLog('⚠️ Notificações não suportadas pelo navegador');
-                    return;
-                }
-                
-                // Verificar permissão
-                if (Notification.permission === 'granted') {
-                    const notification = new Notification('Cardápio Atualizado! 🎉', {
-                        body: `Dados atualizados: ${changes.join(', ')}`,
-                        icon: '/favicon.ico',
-                        tag: 'cardapio-update',
-                        requireInteraction: false
-                    });
-                    
-                    // Auto-close após 5 segundos
-                    setTimeout(() => {
-                        notification.close();
-                    }, 5000);
-                    
-                    debugLog('✅ Notificação de atualização exibida');
-                } else if (Notification.permission === 'default') {
-                    // Solicitar permissão
-                    Notification.requestPermission().then(permission => {
-                        if (permission === 'granted') {
-                            showUpdateNotification(changes);
-                        }
-                    });
-                }
-            } catch (error) {
-                debugLog('⚠️ Erro ao mostrar notificação:', error);
-            }
+            // Notificações desabilitadas - apenas log para debug
+            debugLog(`🔄 Dados atualizados: ${changes.join(', ')}`);
         }
         
-        // Função para atualizar indicador visual das atualizações
+        // Função para atualizar indicador visual das atualizações (SIMPLIFICADA)
         function updateRealtimeIndicator(status = 'active') {
             const dot = document.getElementById('realtime-dot');
             const text = document.getElementById('realtime-text');
@@ -3738,31 +3750,21 @@
                     dot.className = 'w-2 h-2 bg-green-500 rounded-full animate-pulse';
                     text.textContent = '✅';
                     statusText.textContent = 'Ativo';
-                    statusText.style.color = 'var(--cor-sucesso)';
                     break;
                 case 'updating':
                     dot.className = 'w-2 h-2 bg-blue-500 rounded-full animate-pulse';
                     text.textContent = '🔄';
                     statusText.textContent = 'Atualizando...';
-                    statusText.style.color = 'var(--cor-primaria)';
                     break;
                 case 'error':
                     dot.className = 'w-2 h-2 bg-red-500 rounded-full';
                     text.textContent = '❌';
                     statusText.textContent = 'Erro';
-                    statusText.style.color = 'var(--cor-erro)';
-                    break;
-                case 'stopped':
-                    dot.className = 'w-2 h-2 bg-gray-500 rounded-full';
-                    text.textContent = '⏹️';
-                    statusText.textContent = 'Parado';
-                    statusText.style.color = 'var(--cor-texto-secundario)';
                     break;
                 default:
-                    dot.className = 'w-2 h-2 bg-gray-400 rounded-full';
-                    text.textContent = '❓';
-                    statusText.textContent = 'Desconhecido';
-                    statusText.style.color = 'var(--cor-texto-secundario)';
+                    dot.className = 'w-2 h-2 bg-green-500 rounded-full animate-pulse';
+                    text.textContent = '✅';
+                    statusText.textContent = 'Ativo';
             }
         }
         
@@ -7931,11 +7933,6 @@
         
         // Initialize everything
         document.addEventListener('DOMContentLoaded', function() {
-            // Solicitar permissão para notificações
-            if ('Notification' in window && Notification.permission === 'default') {
-                Notification.requestPermission();
-            }
-            
             loadAllData(); // This will load CSV data and then call initializeApp()
         });
         
